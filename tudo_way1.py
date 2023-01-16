@@ -52,7 +52,7 @@ def generateTokens():
 def bruteforceToken(target):
     p1 = log.progress("")
     url = "http://%s/resetpassword.php" % target
-    counter = 1
+    counter = 0
     with open('tokens.txt', 'r') as f:
         for token in f:
             token = token.strip()
